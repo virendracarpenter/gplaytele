@@ -1,0 +1,64 @@
+name: PUBG Mobile Download & Upload
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight UTC
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  pubg-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Install Rust & apkeep
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+      run: cargo install apkeep
+
+    - name: Download files
+      env:
+        GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+        AAS_TOKEN: ${{ secrets.AAS_TOKEN }}
+      run: |
+        mkdir -p pubg_files
+        echo "::add-mask::$GOOGLE_EMAIL"
+        echo "::add-mask::$AAS_TOKEN"
+        ~/.cargo/bin/apkeep -a com.pubg.imobile \
+          -d google-play \
+          -o "device=ad_g3_pro,locale=en_IN,include_additional_files=true" \
+          -e "$GOOGLE_EMAIL" \
+          -t "$AAS_TOKEN" \
+          ./pubg_files
+
+    - name: Verify file structure
+      run: |
+        if [ ! -f "pubg_files/com.pubg.imobile/com.pubg.imobile.apk" ]; then
+          echo "::error::APK file not found in expected structure!"
+          exit 1
+        fi
+        echo "File structure verified:"
+        tree pubg_files
+
+    - name: Upload to Telegram
+      env:
+        TG_TOKEN: ${{ secrets.TG_TOKEN }}
+        TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      run: |
+        for file in pubg_files/com.pubg.imobile/*; do
+          echo "📤 Uploading $(basename "$file")..."
+          curl --progress-bar -F document=@"$file" \
+            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument?chat_id=${TG_CHAT_ID}" \
+            --max-time 1800 \
+            --connect-timeout 30
+          sleep 10
+        done
