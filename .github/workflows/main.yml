@@ -17,12 +17,14 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v4
 
-    - name: Install Rust & apkeep
+    - name: Install Rust
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         override: true
+
+    - name: Install apkeep
       run: cargo install apkeep
 
     - name: Download files
