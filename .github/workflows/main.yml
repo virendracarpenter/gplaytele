@@ -69,6 +69,7 @@ jobs:
         CHAT_ID = os.getenv('TG_CHAT_ID')
         app = Client('my_account', api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
         app.start()
+        
         print('Client Connected')
         for file in glob.glob('pubg_files/com.pubg.imobile/*'):
             if os.path.isfile(file):
