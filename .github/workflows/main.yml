@@ -5,8 +5,6 @@ on:
     - cron: '0 0 * * *'  # Daily at midnight UTC
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -51,16 +49,32 @@ jobs:
         echo "File structure verified:"
         tree pubg_files
 
+    - name: Install Required Packages
+      run: pip install pyrogram tgcrypto
+
     - name: Upload to Telegram
       env:
-        TG_TOKEN: ${{ secrets.TG_TOKEN }}
+        API_ID: ${{ secrets.API_ID }}
+        API_HASH: ${{ secrets.API_HASH }}
+        SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
         TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
       run: |
-        for file in pubg_files/com.pubg.imobile/*; do
-          echo "📤 Uploading $(basename "$file")..."
-          curl --progress-bar -F document=@"$file" \
-            "https://api.telegram.org/bot${TG_TOKEN}/sendDocument?chat_id=${TG_CHAT_ID}" \
-            --max-time 1800 \
-            --connect-timeout 30
-          sleep 10
-        done
+        python -c "
+        from pyrogram import Client
+        import os
+        import glob
+        API_ID = os.getenv('API_ID')
+        API_HASH = os.getenv('API_HASH')
+        SESSION_STRING = os.getenv('SESSION_STRING')
+        CHAT_ID = os.getenv('TG_CHAT_ID')
+        app = Client('my_account', api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
+        app.start()
+        for file in glob.glob('pubg_files/com.pubg.imobile/*'):
+            if os.path.isfile(file):
+                try:
+                    app.send_document(CHAT_ID, file)
+                    print(f'Successfully uploaded {file}')
+                except Exception as e:
+                    print(f'Failed to upload {file}: {e}')
+        app.stop()
+        "
