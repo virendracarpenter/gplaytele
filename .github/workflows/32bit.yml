@@ -1,0 +1,92 @@
+name: BGMI 32 bit Download & Upload
+
+on:
+#   schedule:
+#     - cron: '0 0 * * *'  # Daily at midnight UTC
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  pubg-update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+
+    - name: Install apkeep
+      run: cargo install apkeep
+
+    - name: Download files
+      env:
+        GOOGLE_EMAIL: ${{ secrets.GOOGLE_EMAIL }}
+        AAS_TOKEN: ${{ secrets.AAS_TOKEN }}
+      run: |
+        mkdir -p pubg_files
+        echo "::add-mask::$GOOGLE_EMAIL"
+        echo "::add-mask::$AAS_TOKEN"
+        ~/.cargo/bin/apkeep -a com.pubg.imobile \
+          -d google-play \
+          -o "device=sm_j5_prime,locale=en_IN,include_additional_files=true" \
+          -e "$GOOGLE_EMAIL" \
+          -t "$AAS_TOKEN" \
+          ./pubg_files
+
+    - name: Verify file structure
+      run: |
+        if [ ! -f "pubg_files/com.pubg.imobile/com.pubg.imobile.apk" ]; then
+          echo "::error::APK file not found in expected structure!"
+          exit 1
+        fi
+        echo "File structure verified:"
+        tree pubg_files
+
+    - name: Install Required Packages
+      run: pip install pyrogram tgcrypto
+
+    - name: Upload to Telegram
+      env:
+        API_ID: ${{ secrets.API_ID }}
+        API_HASH: ${{ secrets.API_HASH }}
+        SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
+        TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+      run: |
+        python -c "
+        import asyncio
+        from pyrogram import Client
+        import os
+        import glob
+        
+        API_ID = os.getenv('API_ID')
+        API_HASH = os.getenv('API_HASH')
+        SESSION_STRING = os.getenv('SESSION_STRING')
+        CHAT_ID = os.getenv('TG_CHAT_ID')
+
+        # Define progress callback
+        async def progress(current, total):
+            print(f'{current * 100 / total:.1f}%')
+        
+        async def main():
+            app = Client('my_account', api_id=API_ID, api_hash=API_HASH, session_string=SESSION_STRING)
+            await app.start()
+            
+            print('Client Connected')
+            
+            for file in glob.glob('pubg_files/com.pubg.imobile/*'):
+                if os.path.isfile(file):
+                    try:
+                        await app.send_document(CHAT_ID, file, caption='BGMI 32-bit APK/OBB', progress=progress)
+                        print(f'Successfully uploaded {file}')
+                    except Exception as e:
+                        print(f'Failed to upload {file}: {e}')
+            app.stop()
+        asyncio.run(main())
+        "
