@@ -74,9 +74,11 @@ async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id, v
             # Extract SRC number from OBB filename (e.g., main.21120.com.pubg.imobile.obb)
             parts = filename.split(".")
             src_number = parts[1] if len(parts) > 1 else "N/A"
+            display_name = filename  # Keep original OBB name
         else:
             file_type = "APK"
             src_number = None
+            display_name = f"@BGMI_apk_{bit_label.replace(' ', '_')}_{version}.apk"
 
         # Build caption
         caption = f"""PUBG BGMI 🇮🇳 {file_type} ⚡️
@@ -98,6 +100,7 @@ async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id, v
             await app.send_document(
                 chat_id,
                 file_path,
+                file_name=display_name,
                 caption=caption,
                 progress=lambda c, t: print(f"  {c * 100 / t:.1f}%"),
             )
