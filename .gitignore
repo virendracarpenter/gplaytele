@@ -255,3 +255,15 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+
+### AWS CDK ###
+cdk/cdk.out/
+cdk/.venv/
+cdk/venv/
+cdk/node_modules/
+cdk/lambda/version_check/google_play_scraper/
+cdk/lambda/version_check/google_play_scraper-*.dist-info/
+cdk/layer/lambda-layer.zip
+*.js
+!cdk.json
+response.json
