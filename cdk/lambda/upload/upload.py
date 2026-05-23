@@ -46,8 +46,8 @@ def download_from_s3(s3_keys):
     return local_files
 
 
-async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id):
-    """Upload files to Telegram channel."""
+async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id, variant, version):
+    """Upload files to Telegram channel with formatted captions."""
     from pyrogram import Client
 
     app = Client(
@@ -61,16 +61,44 @@ async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id):
     await app.start()
     print("Telegram client connected")
 
+    bit_label = "32 BIT" if "32" in variant else "64 BIT"
+
     for file_path in files:
         filename = os.path.basename(file_path)
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
         print(f"Uploading {filename} ({size_mb:.1f} MB)...")
 
+        # Determine file type for caption
+        if filename.endswith(".obb"):
+            file_type = "OBB"
+            # Extract SRC number from OBB filename (e.g., main.21120.com.pubg.imobile.obb)
+            parts = filename.split(".")
+            src_number = parts[1] if len(parts) > 1 else "N/A"
+        else:
+            file_type = "APK"
+            src_number = None
+
+        # Build caption
+        caption = f"""PUBG BGMI 🇮🇳 {file_type} ⚡️
+➖➖➖➖➖➖➖➖➖
+🔸 VERSION {version} ✓
+🔹 {bit_label} 🇮🇳 {file_type} ✓"""
+
+        if src_number:
+            caption += f"\n🔸 SRC ‌➲ [ {src_number} ]"
+
+        caption += f"""
+🔹 WITHOUT VPN ✓
+🔸 ORIGINAL 🇮🇳 {file_type}
+╔═.🔸.═════════╗
+     @BGMI_apk
+╚═════════.🔹.═╝"""
+
         try:
             await app.send_document(
                 chat_id,
                 file_path,
-                caption=CAPTION,
+                caption=caption,
                 progress=lambda c, t: print(f"  {c * 100 / t:.1f}%"),
             )
             print(f"Uploaded: {filename}")
@@ -104,7 +132,7 @@ def lambda_handler(event, context):
     # Upload to Telegram
     uvloop.install()
     asyncio.run(
-        upload_to_telegram(local_files, api_id, api_hash, session_string, chat_id)
+        upload_to_telegram(local_files, api_id, api_hash, session_string, chat_id, VARIANT, version)
     )
 
     # Trigger next upload in chain (if configured)
