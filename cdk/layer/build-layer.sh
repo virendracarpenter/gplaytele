@@ -38,7 +38,7 @@ cp /usr/lib64/libssl.so.3 /tmp/layer/lib/
 cp /usr/lib64/libcrypto.so.3 /tmp/layer/lib/
 
 echo "=== Installing Python dependencies ==="
-pip3.11 install pyrogram tgcrypto google-play-scraper -t /tmp/layer/python/
+pip3.11 install pyrofork tgcrypto google-play-scraper -t /tmp/layer/python/
 
 echo "=== Packaging layer ==="
 cd /tmp/layer
