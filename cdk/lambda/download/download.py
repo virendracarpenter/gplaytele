@@ -43,8 +43,11 @@ def download_apk(google_email, aas_token):
         DOWNLOAD_DIR,
     ]
 
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = "/opt/lib:" + env.get("LD_LIBRARY_PATH", "")
+
     print(f"Running apkeep for {VARIANT} (device: {DEVICE})")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, env=env)
 
     if result.returncode != 0:
         print(f"STDOUT: {result.stdout}")

@@ -1,7 +1,6 @@
 """
-Version Check Lambda — Scrapes Google Play Store for current app version.
-If version differs from what's stored in DynamoDB, triggers the Download Lambda.
-No heavy dependencies needed (just google-play-scraper + boto3).
+Version Check Lambda — Scrapes Google Play Store for current BGMI version.
+If version differs from stored, triggers BOTH 32-bit and 64-bit download Lambdas.
 """
 
 import json
@@ -13,16 +12,16 @@ from google_play_scraper import app as gplay_app
 dynamodb = boto3.resource("dynamodb")
 lambda_client = boto3.client("lambda")
 
-VARIANT = os.environ["VARIANT"]
 VERSION_TABLE = os.environ["VERSION_TABLE"]
-DOWNLOAD_FUNCTION_ARN = os.environ["DOWNLOAD_FUNCTION_ARN"]
+DOWNLOAD_32_FUNCTION_ARN = os.environ["DOWNLOAD_32_FUNCTION_ARN"]
+DOWNLOAD_64_FUNCTION_ARN = os.environ["DOWNLOAD_64_FUNCTION_ARN"]
 PACKAGE_NAME = os.environ["PACKAGE_NAME"]
 
 
 def get_stored_version():
     """Get the last known version from DynamoDB."""
     table = dynamodb.Table(VERSION_TABLE)
-    resp = table.get_item(Key={"variant": VARIANT})
+    resp = table.get_item(Key={"variant": "current"})
     item = resp.get("Item")
     return item.get("version") if item else None
 
@@ -30,21 +29,17 @@ def get_stored_version():
 def store_version(version):
     """Store the current version in DynamoDB."""
     table = dynamodb.Table(VERSION_TABLE)
-    table.update_item(
-        Key={"variant": VARIANT},
-        UpdateExpression="SET version = :v",
-        ExpressionAttributeValues={":v": version},
-    )
+    table.put_item(Item={"variant": "current", "version": version})
 
 
 def get_play_store_version():
-    """Fetch current version from Google Play Store (no auth needed)."""
+    """Fetch current version from Google Play Store."""
     result = gplay_app(PACKAGE_NAME, lang="en", country="in")
     return result.get("version")
 
 
 def lambda_handler(event, context):
-    print(f"=== BGMI {VARIANT} Version Check ===")
+    print("=== BGMI Version Check ===")
 
     # Get current version from Play Store
     current_version = get_play_store_version()
@@ -60,7 +55,6 @@ def lambda_handler(event, context):
             "statusCode": 200,
             "body": json.dumps({
                 "message": "No update",
-                "variant": VARIANT,
                 "version": current_version,
             }),
         }
@@ -70,21 +64,23 @@ def lambda_handler(event, context):
     # Update stored version
     store_version(current_version)
 
-    # Trigger download Lambda
-    payload = {"variant": VARIANT, "version": current_version}
-    print(f"Invoking download Lambda: {DOWNLOAD_FUNCTION_ARN}")
-
-    lambda_client.invoke(
-        FunctionName=DOWNLOAD_FUNCTION_ARN,
-        InvocationType="Event",  # async
-        Payload=json.dumps(payload),
-    )
+    # Trigger both download Lambdas
+    for arn, variant in [
+        (DOWNLOAD_32_FUNCTION_ARN, "32bit"),
+        (DOWNLOAD_64_FUNCTION_ARN, "64bit"),
+    ]:
+        payload = {"variant": variant, "version": current_version}
+        print(f"Invoking {variant} download: {arn}")
+        lambda_client.invoke(
+            FunctionName=arn,
+            InvocationType="Event",
+            Payload=json.dumps(payload),
+        )
 
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "message": "New version found, download triggered",
-            "variant": VARIANT,
+            "message": "New version found, both downloads triggered",
             "old_version": stored_version,
             "new_version": current_version,
         }),

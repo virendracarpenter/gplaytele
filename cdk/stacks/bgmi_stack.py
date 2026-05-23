@@ -21,23 +21,32 @@ class BgmiDownloaderStack(Stack):
         super().__init__(scope, id, **kwargs)
 
         # --- SSM Parameters (secrets) ---
-        params = {
-            "google-email": "Google Play account email",
-            "aas-token": "Google Play AAS token",
-            "api-id": "Telegram API ID",
-            "api-hash": "Telegram API hash",
-            "tg-session-string": "Telegram session string",
-            "tg-chat-id": "Telegram chat ID for uploads",
-        }
+        # params = {
+        #     "google-email": "Google Play account email",
+        #     "aas-token": "Google Play AAS token",
+        #     "api-id": "Telegram API ID",
+        #     "api-hash": "Telegram API hash",
+        #     "tg-session-string": "Telegram session string",
+        #     "tg-chat-id": "Telegram chat ID for uploads",
+        # }
 
-        for name, description in params.items():
-            ssm.StringParameter(
-                self,
-                f"Param-{name}",
-                parameter_name=f"/bgmi/{name}",
-                string_value="PLACEHOLDER",
-                description=description,
-            )
+        # for name, description in params.items():
+        #     ssm.StringParameter(
+        #         self,
+        #         f"Param-{name}",
+        #         parameter_name=f"/bgmi/{name}",
+        #         string_value="PLACEHOLDER",
+        #         description=description,
+        #     )
+
+        # --- SSM Parameters ---
+        # Secrets are created manually via CLI (not managed by CDK):
+        #   aws ssm put-parameter --name "/bgmi/google-email" --value "..." --type SecureString
+        #   aws ssm put-parameter --name "/bgmi/aas-token" --value "..." --type SecureString
+        #   aws ssm put-parameter --name "/bgmi/api-id" --value "..." --type SecureString
+        #   aws ssm put-parameter --name "/bgmi/api-hash" --value "..." --type SecureString
+        #   aws ssm put-parameter --name "/bgmi/tg-session-string" --value "..." --type SecureString
+        #   aws ssm put-parameter --name "/bgmi/tg-chat-id" --value "..." --type SecureString
 
         # --- DynamoDB table for version tracking ---
         version_table = dynamodb.Table(
@@ -77,47 +86,20 @@ class BgmiDownloaderStack(Stack):
             "PACKAGE_NAME": "com.pubg.imobile",
         }
 
-        # --- Version Check Lambdas (lightweight, no heavy layer) ---
-        version_check_32 = _lambda.Function(
+        # --- Single Version Check Lambda (both variants share same version) ---
+        version_check = _lambda.Function(
             self,
-            "VersionCheck32bit",
-            function_name="bgmi-version-check-32bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            "VersionCheck",
+            function_name="bgmi-version-check",
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="version_check.lambda_handler",
             code=_lambda.Code.from_asset(
-                os.path.join(os.path.dirname(__file__), "../lambda/version_check"),
-                bundling=_lambda.BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash", "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
-                    ],
-                ),
+                os.path.join(os.path.dirname(__file__), "../lambda/version_check")
             ),
+            layers=[deps_layer],
             timeout=Duration.seconds(30),
             memory_size=256,
-            environment={**common_env, "VARIANT": "32bit"},
-        )
-
-        version_check_64 = _lambda.Function(
-            self,
-            "VersionCheck64bit",
-            function_name="bgmi-version-check-64bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="version_check.lambda_handler",
-            code=_lambda.Code.from_asset(
-                os.path.join(os.path.dirname(__file__), "../lambda/version_check"),
-                bundling=_lambda.BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
-                    command=[
-                        "bash", "-c",
-                        "pip install -r requirements.txt -t /asset-output && cp -au . /asset-output",
-                    ],
-                ),
-            ),
-            timeout=Duration.seconds(30),
-            memory_size=256,
-            environment={**common_env, "VARIANT": "64bit"},
+            environment={**common_env},
         )
 
         # --- Download Lambdas (heavy, uses apkeep layer) ---
@@ -125,7 +107,7 @@ class BgmiDownloaderStack(Stack):
             self,
             "Download32bit",
             function_name="bgmi-download-32bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="download.lambda_handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "../lambda/download")
@@ -141,7 +123,7 @@ class BgmiDownloaderStack(Stack):
             self,
             "Download64bit",
             function_name="bgmi-download-64bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="download.lambda_handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "../lambda/download")
@@ -158,7 +140,7 @@ class BgmiDownloaderStack(Stack):
             self,
             "Upload32bit",
             function_name="bgmi-upload-32bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="upload.lambda_handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "../lambda/upload")
@@ -178,7 +160,7 @@ class BgmiDownloaderStack(Stack):
             self,
             "Upload64bit",
             function_name="bgmi-upload-64bit",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="upload.lambda_handler",
             code=_lambda.Code.from_asset(
                 os.path.join(os.path.dirname(__file__), "../lambda/upload")
@@ -195,9 +177,10 @@ class BgmiDownloaderStack(Stack):
         )
 
         # --- Permissions ---
-        # Version check lambdas need DynamoDB + invoke download
-        for fn in [version_check_32, version_check_64]:
-            version_table.grant_read_write_data(fn)
+        # Version check needs DynamoDB + invoke both download lambdas
+        version_table.grant_read_write_data(version_check)
+        download_32.grant_invoke(version_check)
+        download_64.grant_invoke(version_check)
 
         # Download lambdas need S3 + SSM + invoke upload
         for fn in [download_32, download_64]:
@@ -225,14 +208,12 @@ class BgmiDownloaderStack(Stack):
             )
 
         # Chain: version_check → download → upload
-        download_32.grant_invoke(version_check_32)
-        download_64.grant_invoke(version_check_64)
         upload_32.grant_invoke(download_32)
         upload_64.grant_invoke(download_64)
 
         # Pass function ARNs via environment
-        version_check_32.add_environment("DOWNLOAD_FUNCTION_ARN", download_32.function_arn)
-        version_check_64.add_environment("DOWNLOAD_FUNCTION_ARN", download_64.function_arn)
+        version_check.add_environment("DOWNLOAD_32_FUNCTION_ARN", download_32.function_arn)
+        version_check.add_environment("DOWNLOAD_64_FUNCTION_ARN", download_64.function_arn)
         download_32.add_environment("UPLOAD_FUNCTION_ARN", upload_32.function_arn)
         download_64.add_environment("UPLOAD_FUNCTION_ARN", upload_64.function_arn)
 
@@ -243,8 +224,7 @@ class BgmiDownloaderStack(Stack):
             rule_name="bgmi-daily-check",
             schedule=events.Schedule.cron(minute="0", hour="0"),
         )
-        rule.add_target(targets.LambdaFunction(version_check_32))
-        rule.add_target(targets.LambdaFunction(version_check_64))
+        rule.add_target(targets.LambdaFunction(version_check))
 
         # --- Outputs ---
         CfnOutput(self, "BucketName", value=bucket.bucket_name)
