@@ -132,7 +132,7 @@ class BgmiDownloaderStack(Stack):
             timeout=Duration.minutes(15),
             memory_size=1024,
             ephemeral_storage_size=Size.gibibytes(10),
-            environment={**common_env, "DEVICE": "px_7a", "VARIANT": "64bit"},
+            environment={**common_env, "DEVICE": "px_9a", "VARIANT": "64bit"},
         )
 
         # --- Upload Lambdas (reads from S3, uploads to Telegram) ---
