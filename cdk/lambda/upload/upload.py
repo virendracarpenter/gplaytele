@@ -95,7 +95,7 @@ def lambda_handler(event, context):
     api_id = get_secret("api-id")
     api_hash = get_secret("api-hash")
     session_string = get_secret("tg-session-string")
-    chat_id = get_secret("tg-chat-id")
+    chat_id = int(get_secret("tg-chat-id"))
 
     # Download from S3
     local_files = download_from_s3(s3_keys)
