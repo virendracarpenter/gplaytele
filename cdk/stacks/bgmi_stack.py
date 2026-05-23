@@ -195,9 +195,10 @@ class BgmiDownloaderStack(Stack):
                 )
             )
 
-        # Upload lambdas need S3 + SSM
+        # Upload lambdas need S3 + SSM + DynamoDB (for reading chained S3 keys)
         for fn in [upload_32, upload_64]:
             bucket.grant_read(fn)
+            version_table.grant_read_data(fn)
             fn.add_to_role_policy(
                 iam.PolicyStatement(
                     actions=["ssm:GetParameter"],
@@ -211,11 +212,16 @@ class BgmiDownloaderStack(Stack):
         upload_32.grant_invoke(download_32)
         upload_64.grant_invoke(download_64)
 
+        # 32-bit upload chains to 64-bit upload (sequential to avoid AUTH_KEY_DUPLICATED)
+        upload_64.grant_invoke(upload_32)
+
         # Pass function ARNs via environment
         version_check.add_environment("DOWNLOAD_32_FUNCTION_ARN", download_32.function_arn)
         version_check.add_environment("DOWNLOAD_64_FUNCTION_ARN", download_64.function_arn)
         download_32.add_environment("UPLOAD_FUNCTION_ARN", upload_32.function_arn)
         download_64.add_environment("UPLOAD_FUNCTION_ARN", upload_64.function_arn)
+        # 32-bit upload triggers 64-bit upload after completing
+        upload_32.add_environment("NEXT_UPLOAD_ARN", upload_64.function_arn)
 
         # --- EventBridge cron (daily at midnight UTC) ---
         rule = events.Rule(

@@ -2,7 +2,7 @@
 set -e
 
 # Builds the Lambda layer with apkeep binary + Python dependencies.
-# Uses Amazon Linux 2023 to match the Python 3.14 Lambda runtime.
+# Uses Amazon Linux 2023 with Python 3.14 to match the Lambda runtime.
 #
 # Run with:
 #   docker run --rm -v $(pwd):/build -w /build amazonlinux:2023 bash layer/build-layer.sh
@@ -15,7 +15,7 @@ set -e
 #     --compatible-architectures x86_64
 
 echo "=== Installing build tools ==="
-dnf install -y gcc gcc-c++ python3.11 python3.11-pip python3.11-devel openssl-devel zip perl-FindBin perl-File-Compare perl-IPC-Cmd
+dnf install -y gcc gcc-c++ python3.14 python3.14-pip python3.14-devel openssl-devel zip perl-FindBin perl-File-Compare perl-IPC-Cmd
 
 echo "=== Installing Rust ==="
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -38,7 +38,7 @@ cp /usr/lib64/libssl.so.3 /tmp/layer/lib/
 cp /usr/lib64/libcrypto.so.3 /tmp/layer/lib/
 
 echo "=== Installing Python dependencies ==="
-pip3.11 install pyrofork tgcrypto google-play-scraper -t /tmp/layer/python/
+pip3.14 install pyrofork tgcrypto-pyrofork uvloop google-play-scraper -t /tmp/layer/python/
 
 echo "=== Packaging layer ==="
 cd /tmp/layer
