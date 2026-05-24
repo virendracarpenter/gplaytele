@@ -197,7 +197,7 @@ class BgmiDownloaderStack(Stack):
 
         # Upload lambdas need S3 + SSM + DynamoDB (for reading chained S3 keys)
         for fn in [upload_32, upload_64]:
-            bucket.grant_read(fn)
+            bucket.grant_read_write(fn)
             version_table.grant_read_data(fn)
             fn.add_to_role_policy(
                 iam.PolicyStatement(

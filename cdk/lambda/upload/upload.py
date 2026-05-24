@@ -112,6 +112,15 @@ async def upload_to_telegram(files, api_id, api_hash, session_string, chat_id, v
     await app.stop()
     print("All files uploaded successfully")
 
+    # Clean up S3 files after successful upload
+    s3_client = boto3.client("s3")
+    bucket = os.environ["S3_BUCKET"]
+    for file_path in files:
+        key = f"{variant}/{os.path.basename(file_path)}"
+        print(f"Deleting s3://{bucket}/{key}")
+        s3_client.delete_object(Bucket=bucket, Key=key)
+    print("S3 cleanup complete")
+
 
 def lambda_handler(event, context):
     print(f"=== BGMI {VARIANT} Upload to Telegram ===")
