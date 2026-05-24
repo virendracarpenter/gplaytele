@@ -223,12 +223,12 @@ class BgmiDownloaderStack(Stack):
         # 32-bit upload triggers 64-bit upload after completing
         upload_32.add_environment("NEXT_UPLOAD_ARN", upload_64.function_arn)
 
-        # --- EventBridge cron (daily at midnight UTC) ---
+        # --- EventBridge cron (daily at 11:30 AM IST = 06:00 UTC) ---
         rule = events.Rule(
             self,
             "DailyCron",
             rule_name="bgmi-daily-check",
-            schedule=events.Schedule.cron(minute="0", hour="0"),
+            schedule=events.Schedule.cron(minute="0", hour="6"),
         )
         rule.add_target(targets.LambdaFunction(version_check))
 
